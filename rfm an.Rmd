@@ -1,0 +1,278 @@
+---
+title: "RFM Analysis in Excel and R"
+output: html_document
+---
+
+
+####Description of Dataset
+
+Online_Retail.csv Dataset is Stock Exchange dataset from **01-12-2010**
+to **09-12-2011** ,This dataset have 541910 rows and eight columns.
+
+
+![data](Retail.png)
+
+--------------------------------------------------------------------------
+
+
+```{r Dataset}
+retail <- read.csv("online_retail.csv")
+
+```
+
+**We will view the dataset and check the NA values in data**
+
+```{r Data view}
+head(retail)
+
+summary(retail$CustomerID)
+
+```
+
+#### Clean Data
+
+**There are 135080 NA Customer ID in data.We will Remove the NA values 
+And add Purchase Amount Colunm by Multiply UnitPrice Quantity i.e =F2 x D2**
+
+![Clean data](Clean.png)
+
+--------------------------------------------------------------------------
+
+
+#### Required Data for RFM analysis
+
+***Take Customer ID , Purchase Amount and Invocie Date Column for analysis
+There are 406829 Customer ID***
+
+![Req data](Req.png)
+
+--------------------------------------------------------------------------
+
+
+#### By using Pivot Table remove Frequency, Monetary Value and Max Date
+
+By using Pivot Table we took Customer ID in Rows and Customer ID in Values and in field value setting we took Count,We got Frequency of Customer.We done same for removing the Monetary value by taking Purchase amount in Values and in field value setting as average.For Recency we need the Max Date of a Customer so we took Invoice date in Values in field Value as Max so we got a maximum date of Customer.
+
+
+![Pivot Table data](Pivot.png)
+
+--------------------------------------------------------------------------
+
+
+#### Extracted Recency From Max Date 
+
+***By using Max Date Column we Extracted Recency by taking End date as 01-01-2012 Recency = Days(($L$2,D2)) i.e End date - Max Date***
+
+
+
+![Recency](Rece.png)
+
+--------------------------------------------------------------------------
+
+
+#### We got Recency, Frequency and Monetary Value of a Customer
+
+![RFM ](rfm.png)
+
+--------------------------------------------------------------------------
+
+
+**Know we need to give Score to each Recency , Frequency and Monetary Value Scoring can be done by Subjective Approach or by doing Clustering.
+We will do Clustering in R because of data is large**
+
+
+
+### Clustering in Recency,Frequency and Monetary Value
+
+```{r Clustering}
+
+Scoring <- read.csv("Retail_RFM.csv")
+
+recency <- Scoring$Recency   ##Assign Recency from data to new Varibale recency
+
+frequency <- Scoring$Frequency ##Assign Freq from data to new Varibale frequency
+
+monetary <- Scoring$Monetary   ##Assign Monetary from data to new Varibale
+
+
+```
+
+
+
+We will use **Kmean algorithem** for Clustering,we will form **five cluster** for Recency ,Frequency and Monetary Value
+
+```{r kmean}
+
+recencyScoring <- kmeans(recency,centers = 5) ## 5 cluster (Recency)
+
+freqScoring <- kmeans(frequency,centers = 5) ## 5 cluster (Frequency)
+
+monScoring <- kmeans(monetary,centers = 5) ## 5 cluster (Monetary)
+
+
+```
+
+
+```{r }
+
+Rfm_Scoring <- data.frame(Scoring$Customer.ID,recencyScoring$cluster,freqScoring$cluster,monScoring$cluster)
+
+head(Rfm_Scoring) # View the fist 6 rows of Rfm_rank dataset
+
+write.csv(Rfm_Scoring,"Scoring.csv") ##Save the Rank in csv
+
+```
+
+
+#### Renaming the Score (criteria)
+
+We will Copy paste the Score into Online Retail file for renaming  the cluster.
+It begins with Scoring customers based on recency, i.e. period
+since last purchase, in order of lowest to highest (most recent purchasers at the top).Cluster 2 we will rename to 5 and so on base on below pivot table.
+Customers Ranked for frequency – from the most to least frequent and same for Monetary value- from Highest to Lowest i.e from 5 to 1.
+
+
+![RFM ](rename.png)
+
+--------------------------------------------------------------------------
+
+
+#### Renaming using VLook Up 
+
+![RFM ](vlook.png)
+
+--------------------------------------------------------------------------
+
+
+#### RFM Score
+
+***We will Extract RFM Score by using Concenate Function from Excel.
+We got RFM Score for each Customer in dataset***
+
+
+![RFM ](score.png)
+
+--------------------------------------------------------------------------
+
+
+### Segmentation of Customers
+
+#### Kmean Clustering
+
+```{r RFM_Score}
+
+RFM_score <- read.csv("RFM_Score.csv")
+
+head(RFM_score)
+
+## For Clustering we will take only Recency,Frequency and Monetary colunm
+
+clusterRFM <- RFM_score[c(2,3,4)]
+head(clusterRFM)
+summary(clusterRFM)
+
+```
+
+
+We need to do Scaling for the data set beacuse they are having different units
+
+```{r scale}
+
+ScaleRFM <- scale(clusterRFM) ## Scaling
+
+summary(ScaleRFM)
+```
+
+Now After Scaling we will take Distances
+
+```{r dist}
+
+RFM_dist <- dist(ScaleRFM) ## Distances
+
+kmean_result <- kmeans(RFM_dist,centers = 3)
+
+
+
+o <- order(kmean_result$cluster)
+
+KfinalResult <- data.frame(RFM_score$Customer.ID,RFM_score$RFM_Score,kmean_result$cluster)
+
+head(KfinalResult)
+tail(KfinalResult)
+
+
+
+write.csv(KfinalResult,"KfinalResult.csv")
+
+
+
+```
+
+
+#### Hierarchical Clustering
+
+```{r hclust}
+
+
+
+hclust_result<- hclust(RFM_dist,method = "complete")
+
+library(ggdendro)
+
+ggdendrogram(hclust_result) ## dendrogram
+
+group <- cutree(hclust_result,k=3)
+
+hclustResult <- data.frame(RFM_score$Customer.ID,RFM_score$RFM_Score,group)
+
+head(hclustResult)
+tail(hclustResult)
+
+
+```
+
+**Both Kmean and Hierarchical Clustering have given same clusters
+We will take Kmean Result for Segmentation of Customer**
+
+```{r compare}
+
+library(ggplot2)
+
+library(plotly)
+plot_ly(data = clusterRFM, x = Recency, y = Frequency, z = Monetary, 
+        color =factor(kmean_result$cluster) , type = "scatter3d", mode = "markers")
+
+
+```
+
+
+![clust ](img.png)
+
+--------------------------------------------------------------------------
+
+
+In **Customers segment 1** have most best valuable customers, because its consists of customer who have regularly purchased and have high purchase frequency and purchase amount and number of customers are also more.
+
+In **Customers segment 2** have least likly to buy customer because they have purchase very long ago with very less Frequency and Monetary value.we named them as Uncertain or Churn customer type.
+
+In **Customers segment 3** have very less customers who have done more purchase and are regularly purchasing with very less purchase amount.for this type of customer we have named them as Shoppers who purchase regularly with less amount.
+
+
+## Next
+
+**2)Customer behavior prediction:**
+    We can predict RFM Score of customers base on demographic varibales(Country) 
+                                                                           
+**3)Product Recommedation:**
+    We can recommed product(i.e Stock) on the basis of purchase behavior and extract frequent product purchase in particular segment with particular RFM Score.
+
+                                                                                                                                    
+
+**Reference**
+
+1)Derya Birant (2011). Data Mining Using RFM Analysis, Knowledge-Oriented Applications in Data Mining, Prof.
+Kimito Funatsu (Ed.)
+
+2)Segmentation and Lifetime Value Models Using SAS,Edward C.Malthouse
+  
+
